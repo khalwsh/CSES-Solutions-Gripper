@@ -63,6 +63,10 @@ CSES_PASSWORD=your_password
 node index.js
 ```
 
+or run this command if you didn't made the `.env` file
+```bash
+node CSES-scrapper.js --username YOUR_USERNAME --password YOUR_PASSWORD --out ./cses_solutions --headless true
+```
 The script will:
 1. Launch a headless browser.
 2. Log into CSES.
