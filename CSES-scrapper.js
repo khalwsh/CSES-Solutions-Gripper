@@ -67,7 +67,6 @@ function isAcceptedText(txt) {
     return /Accepted|OK|Correct/i.test(txt);
 }
 
-// safe sleep helper: uses page.waitForTimeout if available, otherwise falls back to setTimeout
 async function sleep(page, ms) {
     if (page && typeof page.waitForTimeout === 'function') {
         return page.waitForTimeout(ms);
@@ -283,11 +282,9 @@ async function sleep(page, ms) {
 
         await fs.ensureDir(argv.out);
 
-        // cache for user submissions page scan to avoid repeated loads
         let userPageCache = null;
-        let userPageCachePidMap = {}; // pid -> result href (first accepted for pid)
+        let userPageCachePidMap = {}; 
 
-        // helper: scan user's submissions page and build pid->acceptedResultLink mapping (first page only)
         const buildUserSubmissionsCache = async () => {
             console.log('Loading user submissions page to build fallback mapping...');
             const userUrl = `https://cses.fi/problemset/user/${argv.username}/`;
