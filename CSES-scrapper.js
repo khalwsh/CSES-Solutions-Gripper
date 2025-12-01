@@ -1,4 +1,3 @@
-
 /**
  * Author : Khalwsh
  * Usage:
@@ -362,6 +361,60 @@ async function sleep(page, ms) {
                 });
                 await sleep(page, 300);
 
+                let problemText = await page.evaluate(() => {
+                    const selectors = ['#content', '.content', 'article', 'main', '.problem'];
+                    function cleanTextFromElement(el) {
+                        if (!el) return '';
+                        const clone = el.cloneNode(true);
+                        // remove scripts, styles, links, noscript
+                        const removes = clone.querySelectorAll('script, style, link, noscript');
+                        removes.forEach(n => n.remove());
+                        // remove hidden or display:none nodes
+                        const all = Array.from(clone.querySelectorAll('*'));
+                        all.forEach(node => {
+                            try {
+                                const cs = window.getComputedStyle(node);
+                                if (!cs) return;
+                                if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') {
+                                    node.remove();
+                                }
+                            } catch (e) {
+                                // ignore
+                            }
+                        });
+                        // get visible inner text
+                        return (clone.innerText || '').replace(/\r/g, '').trim();
+                    }
+                    for (const sel of selectors) {
+                        try {
+                            const el = document.querySelector(sel);
+                            if (el) {
+                                const t = cleanTextFromElement(el);
+                                if (t && t.length > 0) return t;
+                            }
+                        } catch (e) {}
+                    }
+                    // fallback: find element that looks like a problem by keywords
+                    const candidates = Array.from(document.querySelectorAll('div, section, article, main'));
+                    for (const d of candidates) {
+                        try {
+                            const txt = d.innerText || '';
+                            if (txt.length > 40 && (txt.includes('Input') || txt.includes('Output') || txt.includes('Sample') || /Constraints/i.test(txt) || /\bInput\b/.test(txt))) {
+                                const t = cleanTextFromElement(d);
+                                if (t && t.length > 0) return t;
+                            }
+                        } catch (e) {}
+                    }
+                    // final fallback: whole body text
+                    return (document.body && document.body.innerText) ? document.body.innerText.replace(/\r/g, '').trim() : '';
+                });
+                // normalize whitespace a bit: collapse multiple blank lines
+                if (problemText) {
+                    problemText = problemText.replace(/\n{3,}/g, '\n\n').trim();
+                } else {
+                    problemText = '';
+                }
+
                 // 1) try to find direct /result/<id>/ links on the task page
                 const candidateResultLinks = await page.evaluate((myUser) => {
                     const matches = [];
@@ -524,7 +577,7 @@ async function sleep(page, ms) {
                     continue;
                 }
 
-                // Save file
+                // Save file (now include problem TEXT above the solution inside a comment)
                 const ext = guessExtFromLang(resultData.lang || '');
                 const sectionDir = path.join(argv.out, safeName(sectionName));
                 await fs.ensureDir(sectionDir);
@@ -536,7 +589,12 @@ async function sleep(page, ms) {
                     filename = `${filenameBase}_${ts}${ext}`;
                     fp = path.join(sectionDir, filename);
                 }
-                await fs.writeFile(fp, resultData.code, 'utf8');
+
+                // prepare final content: comment header + problem TEXT (safely escaped) + solution code
+                const safeProblemText = (problemText || '').replace(/\*\//g, '*\\/');
+                const finalContent = `/* problem statement text */\n/*\n${safeProblemText}\n*/\n${resultData.code}`;
+
+                await fs.writeFile(fp, finalContent, 'utf8');
                 console.log(`  Saved AC -> ${fp} (lang: ${resultData.lang || 'unknown'})`);
                 savedCount += 1;
 
